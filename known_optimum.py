@@ -49,7 +49,7 @@ def init(X_total, Y_total,seed=1):
   X_sample = []
   Y_sample = []
 
-  x1_index_holder = [3,5,10,12,18,20,24,28, 30,35,35]
+  x1_index_holder = [3,5,10,12,18,20,24,28, 30,35]
   x2_index_holder = [38,20,16,4,39,28,30,35,29,15]
 
   for i in range(10):
@@ -192,6 +192,88 @@ def my_new_BO(X_total,Y_total,acq, fstar,seed = 1): #the shape of X_total is (25
         X_current_1 = X_total[i][1]
         X1_lower = max(0.0,X_current_1-10*0.15)
         X1_upper = min(5.85,X_current_1+10*0.15)
+        X1_range = np.arange(X1_lower,X1_upper,0.15)
+
+        X_near = []
+
+        for x0 in X0_range:
+          for x1 in X1_range:
+            X_near.append([x0,x1])
+        X_near = np.array(X_near)
+
+
+
+        kernel = GPy.kern.RBF(input_dim=2,variance=10,lengthscale=1.2)
+        m_temp = GPy.models.GPRegression(X_sample_temp.reshape(-1,2),Y_sample_temp.reshape(-1,1),kernel)
+        m_temp.Gaussian_noise.variance.fix(0.0)
+
+        mean_temp,var_temp = m_temp.predict(X_near,include_likelihood=False)
+        z = (fstar-mean_temp)/np.sqrt(var_temp)
+        PnI = norm.cdf(z)
+        part2 = np.min(PnI)
+        part2_total[i] = part2
+
+    acq_value = part1_total*part2_total
+    index = np.argmax(acq_value)
+    X_chosen = X_total[index]
+    i_index,j_index = turn(index)
+    Y_chosen = Y_total[i_index,j_index]
+
+    X_sample = np.concatenate((X_sample, X_chosen.reshape(-1,2)), axis=0)
+    Y_sample = np.concatenate((Y_sample, np.array([Y_chosen])), axis=0)
+
+    Y_max= np.max(Y_sample)
+    Y_max_holder.append(Y_max)
+
+
+  Y_max_holder = np.array(Y_max_holder)
+  regret_holder = fstar_true - Y_max_holder
+
+  return regret_holder
+
+
+
+
+def my_new_BO_full_search(X_total,Y_total,acq, fstar,seed = 1): #the shape of X_total is (2500,2), the shape of Y_total is (50,50)
+
+  fstar_true = np.max(Y_total)
+    
+  total_round = 10
+  Y_max_holder = []
+
+  X_sample, Y_sample = init(X_total, Y_total,seed=seed)
+
+  Y_max= np.max(Y_sample)
+  Y_max_holder.append(Y_max)
+
+  for n in range(total_round):
+    #print(n)
+    #train the GP model for X and centrailised Y
+    kernel = GPy.kern.RBF(input_dim=2,variance=10,lengthscale=1.2)
+    m = GPy.models.GPRegression(X_sample,Y_sample.reshape(-1,1),kernel)
+    m.Gaussian_noise.variance.fix(0.0)
+    #m.optimize()
+
+    #find the X that can maximize the acqusition function:
+    mean,var = m.predict(X_total,include_likelihood=False)
+
+    part1_total = findmax(mean,var,fstar)
+    part1_total = part1_total.reshape(-1,)
+
+    part2_total = np.zeros(X_total.shape[0])
+
+    for i in range(X_total.shape[0]):
+        X_sample_temp = np.concatenate((X_sample, np.array([X_total[i]])), axis=0)
+        Y_sample_temp = np.concatenate((Y_sample, np.array([fstar])), axis=0)
+
+        X_current_0 = X_total[i][0]
+        X0_lower = 0.0
+        X0_upper = 5.85
+        X0_range = np.arange(X0_lower,X0_upper,0.15)
+
+        X_current_1 = X_total[i][1]
+        X1_lower = 0.0
+        X1_upper = 5.85
         X1_range = np.arange(X1_lower,X1_upper,0.15)
 
         X_near = []
